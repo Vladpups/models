@@ -1,41 +1,28 @@
-# Stage 3: body-part segmentation -> seams -> min-stretch unwrap -> pack with texel density priorities
-import bpy, sys, json, math, heapq, numpy as np, bmesh
+# Stage 3: body-part segmentation -> seams -> min-stretch unwrap (split while stretched); parts outside cfg.UV_KEEP are charted by xatlas
+import bpy, sys, os, json, math, heapq, numpy as np, bmesh
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from common import load_cfg
+C = load_cfg()
 from mathutils import Vector
 src, out = sys.argv[1], sys.argv[2]
-P = json.loads(sys.argv[3]) if len(sys.argv) > 3 else {}
+P = {**getattr(C, 'UV_PARAMS', {}), **(json.loads(sys.argv[3]) if len(sys.argv) > 3 else {})}
 bpy.ops.wm.open_mainfile(filepath=src)
-lp = bpy.data.objects['LP_Scavenger']; me = lp.data
+lp = bpy.data.objects[f'LP_{C.NAME}']; me = lp.data
 bm = bmesh.new(); bm.from_mesh(me)
 bm.faces.ensure_lookup_table(); bm.verts.ensure_lookup_table(); bm.edges.ensure_lookup_table()
 for e in bm.edges: e.seam = False
 
-# rough skeleton (grounded coords, -Y forward)
-J = {
- 'hip': (0, 0.0, 0.95), 'chest': (0, 0.0, 1.30), 'neck': (0, 0.0, 1.55), 'headb': (0, -0.03, 1.62), 'headt': (0, -0.03, 1.86),
-}
-SEG = [('torso', J['hip'], J['chest']), ('torso', J['chest'], J['neck']), ('head', J['headb'], J['headt'])]
-for s, sx in (('L', 1), ('R', -1)):
-    sh = (sx*0.19, 0.03, 1.50); el = (sx*0.45, 0.045, 1.475); wr = (sx*0.665, 0.03, 1.45); ft = (sx*0.85, 0.03, 1.41)
-    hp = (sx*0.09, 0.02, 0.93)
-    kn = (0.13 if sx > 0 else -0.15, 0.06, 0.50); an = (0.17 if sx > 0 else -0.21, 0.10, 0.09); toe = (0.2 if sx > 0 else -0.26, -0.12, 0.02)
-    SEG += [('arm'+s, sh, el), ('arm'+s, el, wr), ('hand'+s, wr, ft),
-            ('thigh'+s, hp, kn), ('shin'+s, kn, an), ('foot'+s, an, toe)]
+SEG = C.uv_segments()
 def seg_dist(p, a, b):
     a = np.array(a); b = np.array(b); ab = b - a
     t = np.clip(((p - a) @ ab) / (ab @ ab), 0, 1)
     return np.linalg.norm(p - (a + np.outer(t, ab)), axis=1)
-C = np.array([f.calc_center_median()[:] for f in bm.faces])
-D = np.stack([seg_dist(C, a, b) for _, a, b in SEG], 1)
+C_ = np.array([f.calc_center_median()[:] for f in bm.faces])
+D = np.stack([seg_dist(C_, a, b) for _, a, b in SEG], 1)
 names = [n for n, _, _ in SEG]
 lab = [names[i] for i in D.argmin(1)]
-# rules: torso vs arm boundary by |x|, vs thigh by z (belt)
-for i, f in enumerate(bm.faces):
-    x, y, z = C[i]
-    if lab[i].startswith('arm') and abs(x) < 0.21: lab[i] = 'torso'
-    if lab[i] == 'torso' and abs(x) > 0.23 and z > 1.38: lab[i] = 'armL' if x > 0 else 'armR'
-    if lab[i] == 'head' and z < 1.58: lab[i] = 'torso'
-    if lab[i].startswith('thigh') and z > 1.0: lab[i] = 'torso'
-    if lab[i] == 'torso' and z < 0.9: lab[i] = 'thighL' if x > 0 else 'thighR'
+for i in range(len(lab)):
+    lab[i] = C.uv_rule(lab[i], *C_[i])
 def neighbors(f):
     return [e.link_faces[0] if e.link_faces[1] == f else e.link_faces[1] for e in f.edges if len(e.link_faces) == 2]
 NB = [[g.index for g in neighbors(f)] for f in bm.faces]
@@ -91,7 +78,7 @@ def split_dir(part, axis, center, posname, negname, iters=6):
     s = {i: (FN[i] @ axis) for i in idx}
     # combine normal with position relative to center for stability
     for i in idx:
-        s[i] = 0.6 * s[i] + 0.4 * np.sign((C[i] - center) @ axis)
+        s[i] = 0.6 * s[i] + 0.4 * np.sign((C_[i] - center) @ axis)
     for _ in range(iters):
         ns = {}
         for i in idx:
@@ -99,12 +86,7 @@ def split_dir(part, axis, center, posname, negname, iters=6):
             ns[i] = sum(vals) / len(vals)
         s = ns
     for i in idx: lab[i] = posname if s[i] >= 0 else negname
-Y = np.array([0, 1.0, 0]); Z = np.array([0, 0, 1.0])
-split_dir('head', -Y, np.array([0, -0.03, 1.75]), 'head_front', 'head_back')
-split_dir('torso', -Y, np.array([0, 0.0, 1.25]), 'torso_front', 'torso_back')
-for s, sx in (('L', 1), ('R', -1)):
-    split_dir('hand'+s, Z, np.array([sx*0.75, 0.03, 1.43]), 'hand'+s+'_top', 'hand'+s+'_bot')
-    split_dir('foot'+s, Z, np.array([0, 0, 0.035]), 'foot'+s+'_top', 'foot'+s+'_bot')
+for part, axis, center, pn, nn in C.UV_SPLITS: split_dir(part, np.array(axis, float), np.array(center, float), pn, nn)
 lab = smooth(lab, 2); lab = absorb_small(lab, 10**9)
 
 # seams between charts
@@ -145,10 +127,7 @@ def cyl_seam(part, side_fn, split_fn):
     while v in prev:
         pv, e = prev[v]; e.seam = True; v = pv; n += 1
     print('cyl seam', part, n, 'edges')
-for s, sx in (('L', 1), ('R', -1)):
-    cyl_seam('arm'+s, lambda p: p[2] - 0.3 * p[1], lambda p: -1 if abs(p[0]) < 0.3 else (1 if abs(p[0]) > 0.55 else 0))
-    cyl_seam('thigh'+s, lambda p: sx * p[0] + 0.3 * p[1], lambda p: -1 if p[2] > 0.72 else (1 if p[2] < 0.62 else 0))
-    cyl_seam('shin'+s, lambda p: sx * p[0] - 0.5 * p[1], lambda p: -1 if p[2] > 0.38 else (1 if p[2] < 0.2 else 0))
+for part, side_fn, split_fn in C.UV_CYL: cyl_seam(part, side_fn, split_fn)
 from collections import Counter, defaultdict
 cylseams = set(e.index for e in bm.edges if e.seam and len(e.link_faces) == 2 and lab[e.link_faces[0].index] == lab[e.link_faces[1].index])
 print('CHARTS0', len(set(lab)))
@@ -175,26 +154,40 @@ for p in me.polygons:
 for p in me.polygons:
     for li in p.loop_indices: EF[me.loops[li].edge_index].append(p.index)
 FA = np.array([p.area for p in me.polygons])
+TRI = np.array([p.vertices[:] for p in me.polygons]); VCO = np.array([v.co[:] for v in me.vertices])
+LI = np.array([p.loop_indices[:] for p in me.polygons])
+_p0, _p1, _p2 = VCO[TRI[:, 0]], VCO[TRI[:, 1]], VCO[TRI[:, 2]]
+_e1 = _p1 - _p0; _e2 = _p2 - _p0; _l1 = np.linalg.norm(_e1, axis=1); _ex = _e1 / np.maximum(_l1, 1e-12)[:, None]
+_n = np.cross(_e1, _e2); _ey = np.cross(_n / np.maximum(np.linalg.norm(_n, axis=1), 1e-12)[:, None], _ex)
+_Q = np.stack([np.stack([_l1, np.zeros_like(_l1)], 1), np.stack([(_e2 * _ex).sum(1), (_e2 * _ey).sum(1)], 1)], 2)
+_Qi = np.linalg.pinv(_Q)
+def face_metrics():
+    uv = np.empty(len(me.loops) * 2, np.float32); me.uv_layers.active.data.foreach_get('uv', uv); uv = uv.reshape(-1, 2).astype(np.float64)
+    u0, u1, u2 = uv[LI[:, 0]], uv[LI[:, 1]], uv[LI[:, 2]]
+    sg = ((u1 - u0)[:, 0] * (u2 - u0)[:, 1] - (u1 - u0)[:, 1] * (u2 - u0)[:, 0]) / 2
+    Jm = np.stack([u1 - u0, u2 - u0], 2) @ _Qi
+    sv = np.linalg.svd(Jm, compute_uv=False)
+    an = sv[:, 0] / np.maximum(sv[:, 1], 1e-12)
+    return sg, an
 def island_quality(lab):
-    uvl = me.uv_layers.active.data
+    sg_all, an_all = face_metrics()
     groups = defaultdict(list)
     for i, l in enumerate(lab): groups[l].append(i)
     res = {}
     for l, fs in groups.items():
-        sg = []
-        for i in fs:
-            p = me.polygons[i]; pts = [uvl[li].uv.copy() for li in p.loop_indices]
-            a = sum(((pts[k]-pts[0]).cross(pts[k+1]-pts[0]))/2 for k in range(1, len(pts)-1)); sg.append(a)
-        sg = np.array(sg); a3 = FA[fs]
+        sg = sg_all[fs]; a3 = FA[fs]; an = an_all[fs]
+        if np.abs(sg).sum() < 1e-9 or not np.isfinite(sg).all():   # unsolved island (closed shell, no seam)
+            res[l] = (len(fs), len(fs), 1.0, 1.0); continue
         maj = np.sign(sg.sum()); flips = int(((np.sign(sg) != maj) & (np.abs(sg) > 1e-12)).sum())
         ratio = (np.abs(sg) / np.maximum(a3, 1e-12)) / (np.abs(sg).sum() / a3.sum())
         badarea = a3[(ratio < 0.4) | (ratio > 2.5)].sum() / a3.sum()
-        res[l] = (len(fs), flips, badarea)
+        anarea = a3[an > P.get('aniso', 1.7)].sum() / a3.sum()
+        res[l] = (len(fs), flips, badarea, anarea)
     return res
 def split_label(lab, l, tag):
     fs = [i for i, x in enumerate(lab) if x == l]
     if P.get('split', 'plane') == 'plane':
-        Pc = C[fs]; mu = Pc.mean(0); ax = np.linalg.svd(Pc - mu)[2][0]
+        Pc = C_[fs]; mu = Pc.mean(0); ax = np.linalg.svd(Pc - mu)[2][0]
         proj = (Pc - mu) @ ax; med = np.median(proj)
         for n, f in enumerate(fs): lab[f] = f'{l}.{tag}{int(proj[n] > med)}'
         return lab
@@ -227,14 +220,22 @@ def relabel_components(lab):
         if l not in m: m[l] = f'c{len(m)}'
         out.append(m[l])
     return out
+# body parts unwrapped by our seams (clean, semantic islands); the rest (gear-heavy) is charted by xatlas
+PART = lab[:]
+KEEP_PREFIX = tuple(C.UV_KEEP) if hasattr(C, 'UV_KEEP') and P.get('hybrid', True) else None
+def is_keep(i): return KEEP_PREFIX is None or PART[i].startswith(KEEP_PREFIX)
+KEEPF = np.array([is_keep(i) for i in range(len(PART))])
 # absorb tiny components before starting
 lab = relabel_components(lab)
 for it in range(P.get('max_iter', 8)):
     apply_seams_and_unwrap(lab)
     q = island_quality(lab)
-    bad = [l for l, (n, fl, ba) in q.items() if n >= P.get('min_faces', 10) and (fl > max(1, 0.01 * n) or ba > P.get('bad_frac', 0.12))]
+    keep_l = defaultdict(int)
+    for i, l in enumerate(lab): keep_l[l] += 1 if KEEPF[i] else -1
+    bad = [l for l, (n, fl, ba, aa) in q.items() if keep_l[l] > 0 and n >= P.get('min_faces', 10) and (fl > max(1, 0.01 * n) or ba > P.get('bad_frac', 0.12) or aa > P.get('aniso_frac', 1.0))]
     tot_fl = sum(v[1] for v in q.values()); tot_ba = sum(v[2] * FA[[i for i, x in enumerate(lab) if x == l]].sum() for l, v in q.items()) / FA.sum()
-    print(f'iter {it}: islands {len(q)} bad {len(bad)} flips {tot_fl} badarea {tot_ba:.3f}')
+    tot_aa = sum(v[3] * FA[[i for i, x in enumerate(lab) if x == l]].sum() for l, v in q.items()) / FA.sum()
+    print(f'iter {it}: islands {len(q)} bad {len(bad)} flips {tot_fl} badarea {tot_ba:.3f} aniso_area {tot_aa:.3f}')
     if not bad: break
     for l in bad: lab = split_label(lab, l, f'i{it}')
     lab = relabel_components(lab)
@@ -242,6 +243,36 @@ for it in range(P.get('max_iter', 8)):
     lab = absorb_small(lab, 4)
     lab = relabel_components(lab)
 apply_seams_and_unwrap(lab)
+if not KEEPF.all():
+    import xatlas
+    sub = np.nonzero(~KEEPF)[0]
+    vids = np.unique(TRI[sub]); remap = -np.ones(len(VCO), np.int64); remap[vids] = np.arange(len(vids))
+    xa = xatlas.Atlas(); xa.add_mesh(VCO[vids].astype(np.float32), remap[TRI[sub]].astype(np.uint32))
+    co = xatlas.ChartOptions()
+    for k, v in P.get('xatlas', {'normal_deviation_weight': 0.2, 'max_cost': 16, 'straightness_weight': 1, 'roundness_weight': 0.2, 'normal_seam_weight': 1}).items(): setattr(co, k, v)
+    xa.generate(co, xatlas.PackOptions())
+    vmap, ind, xuv = xa[0]
+    par = list(range(len(vmap)))
+    def fnd(x):
+        while par[x] != x: par[x] = par[par[x]]; x = par[x]
+        return x
+    for t in ind:
+        for k in (1, 2): par[fnd(int(t[k]))] = fnd(int(t[0]))
+    uvl = me.uv_layers.active.data
+    for n_, fi in enumerate(sub):
+        t = ind[n_]
+        # xatlas keeps triangle corner order; match corners by original vertex index
+        corner = {int(vids[vmap[t[k]]]): xuv[t[k]] for k in range(3)}
+        for li in me.polygons[fi].loop_indices: uvl[li].uv = corner[me.loops[li].vertex_index]
+        lab[fi] = f'xa{fnd(int(t[0]))}'
+    for e in EF:
+        fs = EF[e]
+        if len(fs) == 2 and (not KEEPF[fs[0]] or not KEEPF[fs[1]]): me.edges[e].use_seam = lab[fs[0]] != lab[fs[1]]
+    print('xatlas charts', len(set(lab[i] for i in sub)), 'for', len(sub), 'faces')
 q = island_quality(lab)
-print('FINAL islands', len(q), 'flips', sum(v[1] for v in q.values()))
+sg_all, an_all = face_metrics()
+for pref in sorted(set(p_.rstrip('LR').split('_')[0] for p_ in PART)):
+    m = np.array([p_.startswith(pref) for p_ in PART])
+    print(f'  part {pref}: faces {m.sum()} islands {len(set(np.array(lab)[m]))} aniso_mean {np.average(np.minimum(an_all[m], 10), weights=FA[m]):.3f} >1.5 {FA[m][an_all[m] > 1.5].sum() / FA[m].sum():.3f}')
+print('FINAL islands', len(q), 'flips', sum(v[1] for v in q.values()), 'aniso_mean', round(float(np.average(np.minimum(an_all, 10), weights=FA)), 3), 'area aniso>1.5', round(float(FA[an_all > 1.5].sum() / FA.sum()), 3), 'aniso>2', round(float(FA[an_all > 2].sum() / FA.sum()), 3))
 bpy.ops.wm.save_as_mainfile(filepath=out)

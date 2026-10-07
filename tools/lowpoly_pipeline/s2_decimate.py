@@ -1,39 +1,23 @@
-# Stage 2: weighted collapse decimation of LP
-import bpy, sys, bmesh, json, math
-src, out, target = sys.argv[1], sys.argv[2], int(sys.argv[3])
-params = json.loads(sys.argv[4]) if len(sys.argv) > 4 else {}
+# Stage 2: weighted collapse decimation of LP (zones from cfg.DEC_REG, boosts from cfg.DEC_BOOST)
+import bpy, sys, os, bmesh, json
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from common import load_cfg
+C = load_cfg()
+src, out = sys.argv[1], sys.argv[2]
+target = int(os.environ.get('TRIS', C.TRIS))
 bpy.ops.wm.open_mainfile(filepath=src)
-lp = bpy.data.objects['LP_Scavenger']; me = lp.data
-
-def smoothstep(e0, e1, x):
-    t = min(max((x - e0) / (e1 - e0), 0.0), 1.0); return t * t * (3 - 2 * t)
-def band(x, a, b, f):  # 1 inside [a,b], falloff f outside
-    if x < a: return 1 - smoothstep(0, f, a - x)
-    if x > b: return 1 - smoothstep(0, f, x - b)
-    return 1.0
-REG = {
- 'head':     lambda x,y,z: band(z,1.62,2.0,0.05)*band(abs(x),0,0.2,0.03),
- 'neck':     lambda x,y,z: band(z,1.50,1.62,0.03)*band(abs(x),0,0.14,0.03),
- 'hands':    lambda x,y,z: band(abs(x),0.66,1.0,0.03)*band(z,1.3,1.6,0.02),
- 'wrists':   lambda x,y,z: band(abs(x),0.60,0.68,0.02)*band(z,1.3,1.6,0.02),
- 'elbows':   lambda x,y,z: band(abs(x),0.40,0.50,0.03)*band(z,1.3,1.6,0.02),
- 'shoulders':lambda x,y,z: band(abs(x),0.15,0.28,0.03)*band(z,1.38,1.64,0.03),
- 'knees':    lambda x,y,z: band(z,0.40,0.62,0.04)*band(abs(x),0.05,0.4,0.02),
- 'shins':    lambda x,y,z: band(z,0.10,0.40,0.02)*band(abs(x),0.05,0.4,0.02),
- 'feet':     lambda x,y,z: band(z,0.0,0.12,0.02),
- 'hips':     lambda x,y,z: band(z,0.82,1.0,0.04)*band(abs(x),0,0.25,0.02),
-}
-boost = params.get('boost', {})
+lp = bpy.data.objects[f'LP_{C.NAME}']; me = lp.data
+REG = C.DEC_REG; boost = C.DEC_BOOST
 g = lp.vertex_groups.new(name='dec_w')
 for v in me.vertices:
     x, y, z = v.co
-    w = 1.0 - params.get('base', 0.0)
+    w = 1.0 - C.DEC_BASE
     for k, b in boost.items():
         w -= b * REG[k](x, y, z)
     g.add([v.index], min(max(w, 0.02), 1.0), 'REPLACE')
 m = lp.modifiers.new('dec', 'DECIMATE'); m.use_collapse_triangulate = True
-m.vertex_group = 'dec_w'; m.vertex_group_factor = params.get('factor', 1.0)
-# binary search ratio to hit target exactly-ish
+m.vertex_group = 'dec_w'; m.vertex_group_factor = getattr(C, 'DEC_FACTOR', 1.0)
+# binary search ratio to land just under the target
 lo, hi = 0.005, 0.2
 dg = bpy.context.evaluated_depsgraph_get()
 for i in range(18):

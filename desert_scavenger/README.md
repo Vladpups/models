@@ -54,7 +54,7 @@ Mixamo: анимации, скачанные для стандартного п�
 Скрипты в `../tools/lowpoly_pipeline/`, нужен Blender 5.2 как модуль (`pip install bpy==5.2.2 xatlas pillow numpy`):
 
 ```
-PY=python ./run_all.sh Meshy.glb Standard_Walk.fbx work out
+LP_CFG=configs/scavenger.py PY=python ./run_all.sh Meshy.glb Standard_Walk.fbx work out
 ```
 
-Координаты суставов в `joints.py` и зоны в `s2_decimate.py`/`s3_uv.py` подобраны под эту модель.
+Координаты суставов, зоны декимации и сегменты UV для этой модели лежат в `configs/scavenger.py`.

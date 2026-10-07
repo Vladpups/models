@@ -1,7 +1,10 @@
 # Stage 4: bake HP -> LP (base color, roughness, metallic via emission; tangent normals; AO)
 import bpy, sys, json, os, numpy as np
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from common import load_cfg
+C = load_cfg()
 src, out, texdir = sys.argv[1], sys.argv[2], sys.argv[3]
-P = json.loads(sys.argv[4]) if len(sys.argv) > 4 else {}
+P = {**getattr(C, 'BAKE_PARAMS', {}), **(json.loads(sys.argv[4]) if len(sys.argv) > 4 else {})}
 RES = P.get('res', 2048); SS = P.get('ss', 2)   # supersample factor
 BR = RES * SS
 os.makedirs(texdir, exist_ok=True)
@@ -9,13 +12,13 @@ bpy.ops.wm.open_mainfile(filepath=src)
 sc = bpy.context.scene
 sc.render.engine = 'CYCLES'; sc.cycles.device = 'CPU'
 sc.cycles.samples = P.get('samples', 1); sc.cycles.use_denoising = False
-hp = bpy.data.objects['HP_Scavenger']; lp = bpy.data.objects['LP_Scavenger']
+hp = bpy.data.objects[f'HP_{C.NAME}']; lp = bpy.data.objects[f'LP_{C.NAME}']
 hp.hide_render = False; hp.hide_set(False); lp.hide_render = False
 bk = sc.render.bake
 bk.use_selected_to_active = True; bk.cage_extrusion = P.get('extrusion', 0.015); bk.max_ray_distance = P.get('ray', 0.035)
 bk.margin = P.get('margin', 16) * SS; bk.margin_type = 'EXTEND'; bk.use_clear = True
 # LP bake material
-mat = bpy.data.materials.new('M_Scavenger'); mat.use_nodes = True
+mat = bpy.data.materials.new(f'M_{C.NAME}'); mat.use_nodes = True
 lp.data.materials.clear(); lp.data.materials.append(mat)
 tex = mat.node_tree.nodes.new('ShaderNodeTexImage'); mat.node_tree.nodes.active = tex
 # HP material hooks
@@ -89,14 +92,14 @@ def save(name, arr, noncolor):
 # base color: emission bake values are linear -> convert to sRGB for 8-bit storage
 def lin2srgb(c):
     c = np.clip(c, 0, 1); return np.where(c <= 0.0031308, c * 12.92, 1.055 * np.power(c, 1 / 2.4) - 0.055)
-save('T_Scavenger_BaseColor', lin2srgb(base[..., :3]), True)
-save('T_Scavenger_Normal', nrm[..., :3], True)
+save(f'T_{C.NAME}_BaseColor', lin2srgb(base[..., :3]), True)
+save(f'T_{C.NAME}_Normal', nrm[..., :3], True)
 ndx = nrm[..., :3].copy(); ndx[..., 1] = 1 - ndx[..., 1]
-save('T_Scavenger_Normal_DirectX', ndx, True)
+save(f'T_{C.NAME}_Normal_DirectX', ndx, True)
 R = np.clip(rough[..., 0], 0, 1); M = np.clip(metal[..., 0], 0, 1)
 O = np.clip(ao, 0, 1) if ao is not None else np.ones_like(R)
 O = 1 - P.get('ao_strength', 0.7) * (1 - O)
-save('T_Scavenger_ORM', np.stack([O, R, M], -1), True)
-save('T_Scavenger_MetallicSmoothness', np.stack([M, M, M, 1 - R], -1), True)
+save(f'T_{C.NAME}_ORM', np.stack([O, R, M], -1), True)
+save(f'T_{C.NAME}_MetallicSmoothness', np.stack([M, M, M, 1 - R], -1), True)
 bpy.ops.wm.save_as_mainfile(filepath=out)
 print('DONE')

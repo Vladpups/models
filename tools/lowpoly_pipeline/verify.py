@@ -1,4 +1,4 @@
-# Re-import deliverables in a clean scene and report what an engine would see
+# Re-import deliverables in a clean scene and report what an engine would see. args: outdir mixamo.fbx NAME [T-pose fbx name]
 import bpy, sys, os
 d = sys.argv[1]
 def report(path, kind):
@@ -19,9 +19,10 @@ def report(path, kind):
           f'root={[b.name for b in bones if not b.parent]} max_influences={maxinf} height={h:.3f}m mats={[s.material.name for s in m.material_slots]} images={imgs} actions={acts}')
     names = sorted(b.name for b in bones)
     return names
-n1 = report(os.path.join(d, 'Scavenger_LowPoly.fbx'), 'fbx')
-n2 = report(os.path.join(d, 'Scavenger_Walk.fbx'), 'fbx')
-n3 = report(os.path.join(d, 'Scavenger.glb'), 'glb')
+name = sys.argv[3]
+n1 = report(os.path.join(d, f'{sys.argv[4] if len(sys.argv) > 4 else name}.fbx'), 'fbx')
+n2 = report(os.path.join(d, f'{name}_Walk.fbx'), 'fbx')
+n3 = report(os.path.join(d, f'{name}.glb'), 'glb')
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.fbx(filepath=sys.argv[2])
 ref = sorted(b.name for b in [o for o in bpy.data.objects if o.type == 'ARMATURE'][0].data.bones)

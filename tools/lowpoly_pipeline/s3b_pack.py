@@ -1,10 +1,13 @@
 # Stage 3b: texel-density priorities + packing (xatlas packer, square 2048 atlas)
-import bpy, sys, json, numpy as np, xatlas, bmesh
+import bpy, sys, os, json, numpy as np, xatlas, bmesh
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from common import load_cfg
+C = load_cfg()
 from collections import defaultdict
 src, out = sys.argv[1], sys.argv[2]
-P = json.loads(sys.argv[3]) if len(sys.argv) > 3 else {}
+P = {**getattr(C, 'PACK_PARAMS', {}), **(json.loads(sys.argv[3]) if len(sys.argv) > 3 else {})}
 bpy.ops.wm.open_mainfile(filepath=src)
-lp = bpy.data.objects['LP_Scavenger']; me = lp.data
+lp = bpy.data.objects[f'LP_{C.NAME}']; me = lp.data
 bm = bmesh.new(); bm.from_mesh(me); uv = bm.loops.layers.uv.active
 bm.faces.ensure_lookup_table()
 # islands by seams
@@ -17,13 +20,7 @@ for e in bm.edges:
     parent[find(e.link_faces[0].index)] = find(e.link_faces[1].index)
 isl = defaultdict(list)
 for f in bm.faces: isl[find(f.index)].append(f)
-def prio(c):
-    x, y, z = c
-    if z > 1.6 and abs(x) < 0.2: return P.get('head', 1.45)
-    if abs(x) > 0.64 and z > 1.3: return P.get('hands', 1.2)
-    if z < 0.11: return P.get('feet', 0.75)
-    if z > 1.3 and abs(x) < 0.25 and c[1] < 0: return P.get('chest', 1.1)
-    return 1.0
+prio = C.uv_prio
 for k, fs in isl.items():
     a3 = sum(f.calc_area() for f in fs)
     auv = 0
