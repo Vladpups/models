@@ -95,8 +95,8 @@ def fit(v, rows=None, steps=((6, 3), (3, 1)), sc_steps=(0.03, 0.01), th_steps=No
     return best
 
 # ---------- back gear: reference rects on the pack / pouch / bedroll at a uniform scale (patch keeps its aspect).
-# Side walls unfold outward into the sheet (the ammo belts hanging beside the pack in the reference),
-# the pack's top/bottom walls stretch a thin strip of its own edge fabric.
+# The pack face runs past the rect into the belts beside it in the sheet; the pack walls get camo fabric made from
+# the pack's palette; the med pouch walls unfold into the pack fabric around it in the sheet.
 def rect_sample(name, u, v):
     x0, y0, x1, y1 = REF_RECTS[name]
     return sample(ref, x0 + u * (x1 - x0), y0 + np.clip(v, 0, 1) * (y1 - y0))
@@ -124,7 +124,6 @@ def camo(su, sv, seed=0, res=0.002):
     out_ = np.clip(out_ * (1 + grain[..., None]), 0, 1).astype(np.float32)
     return sample(out_, np.mod(su / res + 37 * seed, W_ - 2), np.mod(sv / res + 53 * seed, H_ - 2))
 gcol = np.zeros((K, 3), np.float32); gw = np.zeros(K, np.float32)
-EDGE = P.get('edge_strip', 0.03)
 for gid, name, d in ((1, 'panel', PANEL), (2, 'medkit', MEDKIT)):
     m = TG == gid
     X = TP[m]

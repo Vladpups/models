@@ -51,9 +51,6 @@ b = m.node_tree.nodes['Principled BSDF']
 b.inputs['Base Color'].default_value = (0.16, 0.14, 0.09, 1); b.inputs['Roughness'].default_value = 0.85; b.inputs['Metallic'].default_value = 0.0
 g_hp.data.materials.append(m)
 g_hp.hide_render = True
-# sharp edges for LP gear: auto smooth by angle via edge sharpness
-for e in g_lp.data.edges:
-    pass
 # delete body faces hidden inside the panel (LP to save triangles, HP so the bake never hits the old pouches)
 (hx0, hx1), (hz0, hz1), ymin = HIDE['x'], HIDE['z'], HIDE['y_min']
 def inside(v): return hx0 < v.co.x < hx1 and hz0 < v.co.z < hz1 and v.co.y > ymin

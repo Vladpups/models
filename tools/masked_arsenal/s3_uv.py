@@ -175,7 +175,6 @@ for s, sx, side in (('L', 1, 'Left'), ('R', -1, 'Right')):
     cyl_seam('arm'+s, lambda p: p[2] - 0.3 * p[1], lambda p, a=abs(sh[0]) + 0.1, b=abs(wr[0]) - 0.08: -1 if abs(p[0]) < a else (1 if abs(p[0]) > b else 0))
     cyl_seam('thigh'+s, lambda p, sx=sx: sx * p[0] + 0.3 * p[1], lambda p: -1 if p[2] > 0.74 else (1 if p[2] < 0.6 else 0))
     cyl_seam('shin'+s, lambda p, sx=sx: sx * p[0] - 0.5 * p[1], lambda p: -1 if p[2] > 0.40 else (1 if p[2] < 0.2 else 0))
-bx = (np.array([0, 0, 0]))
 cyl_seam('gear3', lambda p: p[1], lambda p: -1 if p[0] < 0.0 else (1 if p[0] > 0.05 else 0))
 from collections import Counter, defaultdict
 cylseams = set(e.index for e in bm.edges if e.seam and len(e.link_faces) == 2 and lab[e.link_faces[0].index] == lab[e.link_faces[1].index])

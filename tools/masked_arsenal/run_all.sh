@@ -1,5 +1,6 @@
 #!/bin/bash
 # Full pipeline: Meshy GLB + Mixamo FBX + reference sheet -> 5k-tri rigged game model
+# usage: PY=python ./run_all.sh Meshy.glb Walking.fbx reference.png work_dir out_dir
 set -e
 D=$(cd "$(dirname "$0")" && pwd)
 PY=${PY:-python}
@@ -15,3 +16,4 @@ $PY -I "$D/s5_material.py" "$W/s4.blend" "$W/s5.blend" "$W/tex"
 $PY -I "$D/s5b_project.py" "$W/s5.blend" "$W/tex" "$REF" "$W/s5b.blend" "$W/dbg"
 $PY -I "$D/s6_rig.py" "$W/s5b.blend" "$WALK" "$W/s6.blend"
 $PY -I "$D/s7_export.py" "$W/s6.blend" "$W/tex" "$OUT"
+$PY -I "$D/verify.py" "$OUT" "$WALK"

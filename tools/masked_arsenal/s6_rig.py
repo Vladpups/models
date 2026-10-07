@@ -189,6 +189,14 @@ select_only(lp)
 mod = [m for m in lp.modifiers if m.type == 'ARMATURE'][0]
 bpy.ops.object.modifier_apply(modifier=mod.name)
 lp.parent = None
+# straightened legs reach a few mm lower than the source pose: put the soles back on z=0 and keep the target height
+H_TARGET = P.get('height', 1.80)
+zs = [v.co.z for v in lp.data.vertices]; z0, z1 = min(zs), max(zs)
+k = H_TARGET / (z1 - z0)
+for v in lp.data.vertices: v.co = Vector((v.co.x * k, v.co.y * k, (v.co.z - z0) * k))
+lp.data.update()
+POSED = {n: Vector((p.x * k, p.y * k, (p.z - z0) * k)) for n, p in POSED.items()}
+print('NORMALIZE sole', round(z0, 4), 'top', round(z1, 4), 'scale', round(k, 5), 'hips', tuple(round(x, 4) for x in POSED['mixamorig:Hips']))
 bpy.data.objects.remove(A)
 # --- final armature: Mixamo names, hierarchy and rest orientations; joints at the character's positions
 FB = {}
