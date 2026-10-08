@@ -31,7 +31,7 @@ for side in ('Left', 'Right'):
     hand = f'mixamorig:{side}Hand'; sx = 1 if side == 'Left' else -1
     rot = Matrix.Rotation(-sx * HAND_DROOP, 3, 'Y') if True else Matrix()
     # rotate about Y: for +x pointing hand, positive droop lowers fingertips
-    rot = Matrix.Rotation(sx * HAND_DROOP, 3, 'Y')
+    rot = Matrix.Rotation(-sx * getattr(_jm, 'HAND_YAW', 0.0), 3, 'Z') @ Matrix.Rotation(sx * HAND_DROOP, 3, 'Y')
     for n in ORDER:
         if n.startswith(f'mixamorig:{side}Hand') and n != hand:
             off = (REF[n][0] - REF[hand][0]) * HAND_SCALE
