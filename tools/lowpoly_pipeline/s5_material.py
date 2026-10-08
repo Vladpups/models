@@ -1,4 +1,5 @@
 # Stage 5: final PBR material on LP from baked textures (glTF/FBX friendly)
+import os as _os; NAME = _os.environ.get("NAME", "Scavenger")
 import bpy, sys, os
 src, out, texdir = sys.argv[1], sys.argv[2], sys.argv[3]
 bpy.ops.wm.open_mainfile(filepath=src)
@@ -7,8 +8,8 @@ hp = bpy.data.objects.get('HP_Scavenger')
 for attr in ('visible_camera', 'visible_diffuse', 'visible_glossy', 'visible_transmission', 'visible_volume_scatter', 'visible_shadow'):
     setattr(lp, attr, True)
 for m in list(bpy.data.materials):
-    if m.name.startswith('M_Scavenger'): bpy.data.materials.remove(m)
-mat = bpy.data.materials.new('M_Scavenger'); mat.use_nodes = True
+    if m.name.startswith(f'M_{NAME}'): bpy.data.materials.remove(m)
+mat = bpy.data.materials.new(f'M_{NAME}'); mat.use_nodes = True
 lp.data.materials.clear(); lp.data.materials.append(mat)
 nt = mat.node_tree; N = nt.nodes; L = nt.links
 bsdf = N['Principled BSDF']
@@ -17,9 +18,9 @@ def img(name, noncolor):
     im = bpy.data.images.load(path, check_existing=False); im.name = name
     if noncolor: im.colorspace_settings.name = 'Non-Color'
     n = N.new('ShaderNodeTexImage'); n.image = im; n.label = name; return n
-bc = img('T_Scavenger_BaseColor', False); bc.location = (-700, 300)
-orm = img('T_Scavenger_ORM', True); orm.location = (-700, 0)
-nm = img('T_Scavenger_Normal', True); nm.location = (-700, -300)
+bc = img(f'T_{NAME}_BaseColor', False); bc.location = (-700, 300)
+orm = img(f'T_{NAME}_ORM', True); orm.location = (-700, 0)
+nm = img(f'T_{NAME}_Normal', True); nm.location = (-700, -300)
 sep = N.new('ShaderNodeSeparateColor'); sep.location = (-400, 0)
 nmap = N.new('ShaderNodeNormalMap'); nmap.location = (-400, -300)
 L.new(bc.outputs['Color'], bsdf.inputs['Base Color'])
