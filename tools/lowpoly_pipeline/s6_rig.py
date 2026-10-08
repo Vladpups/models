@@ -1,4 +1,5 @@
 # Stage 6: Mixamo-compatible rig. Fit -> auto weights -> straighten to Mixamo bind pose -> final Mixamo-oriented armature.
+import os as _os; N = _os.environ.get("NAME", "Scavenger")
 import bpy, sys, os, json, math, numpy as np
 from mathutils import Vector, Matrix, Quaternion
 src, walk, out = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -13,6 +14,7 @@ before = set(bpy.data.objects)
 bpy.ops.import_scene.fbx(filepath=walk)
 mx = [o for o in bpy.data.objects if o not in before and o.type == 'ARMATURE'][0]
 mx.name = 'MixamoRef'
+for o in [o for o in bpy.data.objects if o not in before and o.type != 'ARMATURE']: bpy.data.objects.remove(o)  # skinned mesh in the reference FBX
 action = mx.animation_data.action
 MW = mx.matrix_world
 REF = {}   # name -> (head_world, rot3 world (orthonormal), length_world, parent)
@@ -170,7 +172,7 @@ B.data.name = 'Armature'
 B.data.display_type = 'STICK'
 lp.parent = B
 m = lp.modifiers.new('Armature', 'ARMATURE'); m.object = B
-lp.name = 'Scavenger'; lp.data.name = 'Scavenger'
+lp.name = N; lp.data.name = N
 # --- walk animation from the Mixamo file, retimed to meters
 act = action.copy(); act.name = 'Walk'
 def fcurves(a):
