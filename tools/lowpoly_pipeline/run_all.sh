@@ -11,5 +11,5 @@ $PY -I "$D/s3_uv.py" "$W/s2.blend" "$W/s3.blend" '{"method":"MINIMUM_STRETCH","m
 $PY -I "$D/s3b_pack.py" "$W/s3.blend" "$W/s3b.blend" '{"brute":true}'
 $PY -I "$D/s4_bake.py" "$W/s3b.blend" "$W/s4.blend" "$W/tex" '{"res":2048,"ss":2,"samples":1,"ao_res":2048,"ao_samples":64}'
 $PY -I "$D/s5_material.py" "$W/s4.blend" "$W/s5.blend" "$W/tex"
-$PY -I "$D/s6_rig.py" "$W/s5.blend" "$WALK" "$W/s6.blend"
+JOINTS=${JOINTS:-joints} $PY -I "$D/s6_rig.py" "$W/s5.blend" "$WALK" "$W/s6.blend"
 $PY -I "$D/s7_export.py" "$W/s6.blend" "$W/tex" "$OUT"

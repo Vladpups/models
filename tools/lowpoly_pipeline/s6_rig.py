@@ -4,7 +4,7 @@ from mathutils import Vector, Matrix, Quaternion
 src, walk, out = sys.argv[1], sys.argv[2], sys.argv[3]
 P = json.loads(sys.argv[4]) if len(sys.argv) > 4 else {}
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from joints import J, HAND_SCALE, HAND_DROOP, THUMB_TIP
+import importlib; _jm = importlib.import_module(os.environ.get('JOINTS', 'joints')); J, HAND_SCALE, HAND_DROOP, THUMB_TIP = _jm.J, _jm.HAND_SCALE, _jm.HAND_DROOP, _jm.THUMB_TIP
 bpy.ops.wm.open_mainfile(filepath=src)
 sc = bpy.context.scene
 lp = bpy.data.objects['LP_Scavenger']
