@@ -35,3 +35,31 @@
 
 - Модели из Sketchfab: лицензия зависит от автора. Перед публикацией проверь страницу модели. Если CC-BY, нужна атрибуция.
 - AK-47: thomas1568/ak47 в README указывает CC0 1.0 для Stein Games Classic Weapons Pack. Файла LICENSE в репозитории нет. Страница автора на itch.io не проверена.
+
+## Добавлено: M16, Beretta, SPAS, Barrett, Uzi
+
+| Файл | Слот Battlefield | Что внутри | Треугольников | Длина, м | Текстуры | Источник |
+|---|---|---|---|---|---|---|
+| `m433.glb` | M433 | загруженный `m16_assault_rifle` (M16A3) | 9 655 | 1.006 | PBR 1024 px | Sketchfab, загружено пользователем |
+| `p18.glb` | P18 | загруженный `beretta_92fs_inox_9x19` | 9 448 | 0.216 | PBR 2048 px | Sketchfab, загружено пользователем |
+| `m1014.glb` | M1014 | загруженный `Shotgun III.fbx` (SPAS-34, fictional) | 9 666 | 1.041 | Нет текстур, только цвета материалов | zip, загружено пользователем |
+| `sv98.glb` | SV-98 | загруженный `barret4.fbx` (Barrett M82) | 9 932 | 1.448 | Base color JPEG 2048, normal PNG 1024, ORM PNG 2048 | zip, загружено пользователем |
+| `uzi.glb` | нет слота | загруженный `uzi` | 3 525 | 0.650 | PBR 1024 px | Sketchfab, загружено пользователем |
+
+Размеры:
+- M16A3: 1006 мм. Valka.cz: https://valka.cz (1006 мм). GlobalSecurity M16 specs: https://www.globalsecurity.org/military/systems/ground/m16-specs.htm
+- Beretta 92FS: 216 мм у большинства источников. Vedder: https://www.vedderholsters.com/beretta-92fs-m9
+- SPAS-12: 1041 мм с прикладом. https://en.wikipedia.org/wiki/Franchi_SPAS-12. Модель названа "SPAS-34 fictional", поэтому размер взят у SPAS-12.
+- Barrett M82A1: 57 дюймов (1448 мм) при стволе 29 дюймов. Для 20-дюймового ствола 48 дюймов (1219 мм). https://en.wikipedia.org/wiki/Barrett_M82
+- Uzi: 650 мм с выдвинутым прикладом. Small Arms Survey: https://www.smallarmssurvey.org/sites/default/files/SAS_weapons-sub-machine-guns-Uzi.pdf
+
+Что сделано:
+- M433, P18, SV-98: треугольники снижены до 10 000 упрощением, текстуры не менялись. У Barrett текстуры собраны из карт `albedo`, `normal`, `roughness`, `metallic`. Карты `albedo66` и `ggg.jpg` не подключены: по виду они не привязаны к материалам. Карта normal подключена в OpenGL-схеме без инверсии, это не проверено.
+- M1014 (SPAS): текстур в файле нет, есть цвета материалов. Упрощен до 9 666 треугольников.
+- Uzi уже меньше 10 000 треугольников, упрощение не понадобилось.
+
+Открыто:
+- M1A1 в списке Battlefield из первого сообщения не найден, модели под него нет.
+- Uzi не получил слот. Свободного SMG-слота нет: SGX и PW5A3 уже заняты Bizon и Vector. Могу заменить им SGX.
+- Barrett назначен на SV-98 условно. Это противотанковая/антиматериальная винтовка, в списке Battlefield такого нет. Назначение можно поменять.
+- SPAS назначен на M1014 (полуавтомат). Если нужен помповый M87A1, переименую.
