@@ -65,3 +65,15 @@
 | `ak_103.glb` | 22 911 | `ak74-quaternius.glb` | 1 388 | Самое близкое совпадение: расстояние по пропорциям 0.010 |
 
 Загруженные файлы в репозиторий не добавлены. Их можно упростить тем же способом, что и исходники, если нужна реалистичность.
+
+## Заменено реалистичными моделями
+
+Слоты Battlefield заменены моделями из `../weapons_realistic/`. Стилизованные файлы ниже оставлены как запасные, их можно удалить.
+
+| Слот Battlefield | Стилизованный файл здесь | Замена |
+|---|---|---|
+| AK-205 | `ak74-quaternius.glb` | `weapons_realistic/ak205.glb` |
+| M44 | `pistol-full-west.glb` | `weapons_realistic/m44.glb` |
+| SGX | `smg-full-west.glb` | `weapons_realistic/sgx.glb` |
+| PW5A3 | `smg-compact-west.glb` | `weapons_realistic/pw5a3.glb` |
+| M2010 ESR | `axmc-quaternius.glb` | `weapons_realistic/m2010_esr.glb` |
