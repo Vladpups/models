@@ -1,5 +1,4 @@
 # Stage 6: Mixamo-compatible rig. Fit -> auto weights -> straighten to Mixamo bind pose -> final Mixamo-oriented armature.
-import os as _os; N = _os.environ.get("NAME", "Scavenger")
 import bpy, sys, os, json, math, numpy as np
 from mathutils import Vector, Matrix, Quaternion
 src, walk, out = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -14,7 +13,6 @@ before = set(bpy.data.objects)
 bpy.ops.import_scene.fbx(filepath=walk)
 mx = [o for o in bpy.data.objects if o not in before and o.type == 'ARMATURE'][0]
 mx.name = 'MixamoRef'
-for o in [o for o in bpy.data.objects if o not in before and o.type != 'ARMATURE']: bpy.data.objects.remove(o)  # skinned mesh in the reference FBX
 action = mx.animation_data.action
 MW = mx.matrix_world
 REF = {}   # name -> (head_world, rot3 world (orthonormal), length_world, parent)
@@ -132,6 +130,35 @@ def smooth_W(W, f, it):
         W = (1 - f) * W + f * acc / np.maximum(cnt, 1)
     return W
 W = get_W(lp)
+# --- geometric finger weights: every finger segment gets the hand verts nearest to it
+GI = {g.name: g.index for g in lp.vertex_groups}
+CO = np.array([v.co[:] for v in lp.data.vertices])
+def segd(p, a, b):
+    ab = b - a; t = np.clip(((p - a) @ ab) / max(ab @ ab, 1e-9), 0, 1)
+    return np.linalg.norm(p - (a + np.outer(t, ab)), axis=1)
+for side in ('Left', 'Right'):
+    hb = A.data.bones[f'mixamorig:{side}Hand']
+    wr = np.array(hb.head_local); kn = np.mean([np.array(A.data.bones[f'mixamorig:{side}Hand{f}1'].head_local) for f in ('Index', 'Middle', 'Ring', 'Pinky')], 0)
+    ax = kn - wr; L = np.linalg.norm(ax); ax /= L
+    segs = [b for b in A.data.bones if b.name.startswith(f'mixamorig:{side}Hand') and b.use_deform and b.name in GI]
+    t = (CO - wr) @ ax
+    near = np.linalg.norm(CO - wr, axis=1) < L * 3.0
+    m = near & (t > -0.2 * L)
+    idx = np.nonzero(m)[0]
+    if not len(idx): continue
+    D = np.stack([segd(CO[idx], np.array(b.head_local), np.array(b.tail_local)) for b in segs], 1)
+    # hand bone dominates the palm, fingers take over past the knuckles
+    hi = [i for i, b in enumerate(segs) if b.name == hb.name][0]
+    ramp = np.clip((t[idx] / L - 0.55) / 0.5, 0, 1)
+    D[:, hi] *= 1 + 3 * ramp
+    w = 1.0 / np.maximum(D, 0.002) ** 6
+    w /= w.sum(1, keepdims=True)
+    new = np.zeros((len(idx), W.shape[1]), np.float32)
+    for k, b in enumerate(segs): new[:, GI[b.name]] = w[:, k]
+    blend = np.clip((t[idx] / L + 0.2) / 0.4, 0, 1)
+    blend *= np.clip((0.035 - D.min(1)) / 0.015, 0, 1)   # only the hand surface, not loose sleeves
+    blend = blend[:, None]
+    W[idx] = (1 - blend) * W[idx] + blend * new
 W = smooth_W(W, P.get('smooth_factor', 0.5), P.get('smooth_repeat', 1))
 W = cleanup_W(W)
 set_W(lp, W)
@@ -172,7 +199,7 @@ B.data.name = 'Armature'
 B.data.display_type = 'STICK'
 lp.parent = B
 m = lp.modifiers.new('Armature', 'ARMATURE'); m.object = B
-lp.name = N; lp.data.name = N
+lp.name = 'Scavenger'; lp.data.name = 'Scavenger'
 # --- walk animation from the Mixamo file, retimed to meters
 act = action.copy(); act.name = 'Walk'
 def fcurves(a):
